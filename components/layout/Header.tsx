@@ -41,7 +41,7 @@ export function Header() {
                   新規作成
                 </Link>
               </Button>
-              <Button variant="ghost" size="sm" onClick={handleLogout}>
+              <Button variant="ghost" size="sm" onClick={handleLogout} aria-label="ログアウト">
                 <LogOut className="h-4 w-4" />
               </Button>
             </>

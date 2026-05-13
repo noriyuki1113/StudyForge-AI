@@ -16,18 +16,22 @@ interface Props {
   initial: StoredResult;
 }
 
+type CardWithKey = GeneratedCard & { _key: string };
+
 export function CardReviewList({ initial }: Props) {
   const router = useRouter();
-  const [cards, setCards] = useState<GeneratedCard[]>(initial.cards);
+  const [cards, setCards] = useState<CardWithKey[]>(() =>
+    initial.cards.map((c, i) => ({ ...c, _key: `card-${i}` }))
+  );
   const [deckName] = useState(initial.deckName);
   const [saving, setSaving] = useState(false);
 
-  const handleUpdate = (index: number, updated: GeneratedCard) => {
-    setCards((prev) => prev.map((c, i) => (i === index ? updated : c)));
+  const handleUpdate = (key: string, updated: GeneratedCard) => {
+    setCards((prev) => prev.map((c) => (c._key === key ? { ...updated, _key: key } : c)));
   };
 
-  const handleDelete = (index: number) => {
-    setCards((prev) => prev.filter((_, i) => i !== index));
+  const handleDelete = (key: string) => {
+    setCards((prev) => prev.filter((c) => c._key !== key));
   };
 
   const handleRedo = () => {
@@ -48,7 +52,7 @@ export function CardReviewList({ initial }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           deckName,
-          cards,
+          cards: cards.map((c) => ({ front: c.front, back: c.back })),
           sourceInput: initial._source
             ? { inputType: initial._source.inputType, content: initial._source.content }
             : undefined,
@@ -92,9 +96,10 @@ export function CardReviewList({ initial }: Props) {
         <div className="space-y-3">
           {cards.map((card, i) => (
             <CardReviewItem
-              key={i}
+              key={card._key}
               card={card}
               index={i}
+              cardKey={card._key}
               onUpdate={handleUpdate}
               onDelete={handleDelete}
             />

@@ -64,18 +64,33 @@ export default async function DeckDetailPage({
 
         {/* アクションボタン */}
         <div className="flex gap-3">
-          <Button asChild className="flex-1" disabled={(cards ?? []).length === 0}>
-            <Link href={`/decks/${id}/study`}>
-              <BookOpen className="mr-2 h-4 w-4" />
-              学習する
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="flex-1" disabled={(cards ?? []).length === 0}>
-            <Link href={`/decks/${id}/quiz`}>
-              <Trophy className="mr-2 h-4 w-4" />
-              小テスト
-            </Link>
-          </Button>
+          {(cards ?? []).length === 0 ? (
+            <>
+              <Button className="flex-1" disabled>
+                <BookOpen className="mr-2 h-4 w-4" />
+                学習する
+              </Button>
+              <Button variant="outline" className="flex-1" disabled>
+                <Trophy className="mr-2 h-4 w-4" />
+                小テスト
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button asChild className="flex-1">
+                <Link href={`/decks/${id}/study`}>
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  学習する
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="flex-1">
+                <Link href={`/decks/${id}/quiz`}>
+                  <Trophy className="mr-2 h-4 w-4" />
+                  小テスト
+                </Link>
+              </Button>
+            </>
+          )}
         </div>
 
         {/* カード一覧（クライアント側で編集・削除） */}

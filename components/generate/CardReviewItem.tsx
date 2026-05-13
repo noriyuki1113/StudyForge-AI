@@ -11,18 +11,19 @@ import type { GeneratedCard } from "@/types/ai";
 interface Props {
   card: GeneratedCard;
   index: number;
-  onUpdate: (index: number, updated: GeneratedCard) => void;
-  onDelete: (index: number) => void;
+  cardKey: string;
+  onUpdate: (key: string, updated: GeneratedCard) => void;
+  onDelete: (key: string) => void;
 }
 
-export function CardReviewItem({ card, index, onUpdate, onDelete }: Props) {
+export function CardReviewItem({ card, index, cardKey, onUpdate, onDelete }: Props) {
   const [editing, setEditing] = useState(false);
   const [front, setFront] = useState(card.front);
   const [back, setBack] = useState(card.back);
 
   const handleSave = () => {
     if (!front.trim() || !back.trim()) return;
-    onUpdate(index, { front: front.trim(), back: back.trim() });
+    onUpdate(cardKey, { front: front.trim(), back: back.trim() });
     setEditing(false);
   };
 
@@ -41,24 +42,25 @@ export function CardReviewItem({ card, index, onUpdate, onDelete }: Props) {
         <div className="flex gap-1 shrink-0">
           {editing ? (
             <>
-              <Button size="sm" variant="ghost" onClick={handleSave} title="保存">
+              <Button size="sm" variant="ghost" onClick={handleSave} title="保存" aria-label="保存">
                 <Check className="h-4 w-4" />
               </Button>
-              <Button size="sm" variant="ghost" onClick={handleCancel} title="キャンセル">
+              <Button size="sm" variant="ghost" onClick={handleCancel} title="キャンセル" aria-label="キャンセル">
                 <X className="h-4 w-4" />
               </Button>
             </>
           ) : (
             <>
-              <Button size="sm" variant="ghost" onClick={() => setEditing(true)} title="編集">
+              <Button size="sm" variant="ghost" onClick={() => setEditing(true)} title="編集" aria-label="編集">
                 <Pencil className="h-4 w-4" />
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => onDelete(index)}
+                onClick={() => onDelete(cardKey)}
                 className="text-destructive hover:text-destructive"
                 title="削除"
+                aria-label="削除"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>

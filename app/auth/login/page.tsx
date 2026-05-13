@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { BookOpen } from "lucide-react";
 
@@ -13,7 +14,9 @@ export default function LoginPage() {
           <p className="text-muted-foreground text-sm">アカウントにログイン</p>
         </div>
         <div className="bg-white rounded-lg border p-6 shadow-sm">
-          <LoginForm />
+          <Suspense>
+            <LoginForm />
+          </Suspense>
         </div>
       </div>
     </div>
