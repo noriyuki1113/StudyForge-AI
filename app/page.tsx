@@ -42,7 +42,7 @@ function LandingPage() {
       <div className="text-center space-y-4">
         <h1 className="text-4xl font-bold tracking-tight">
           教材を貼るだけで<br />
-          <span className="text-primary">フラッシュカード</span>を自動生成
+          <span className="text-primary">フラッシュカード</span>を<br className="sm:hidden" />自動生成
         </h1>
         <p className="text-muted-foreground text-lg max-w-xl mx-auto">
           技術記事・GitHub README・メモを入力するだけで、AIが重要ポイントを抽出してフラッシュカードと小テストを作成します。
