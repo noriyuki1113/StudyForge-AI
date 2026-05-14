@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { TextInputTab } from "./TextInputTab";
 import { UrlInputTab } from "./UrlInputTab";
+import { PdfInputTab } from "./PdfInputTab";
 import { Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GenerateCardsResult } from "@/types/ai";
@@ -14,12 +15,16 @@ import type { GenerateCardsResult } from "@/types/ai";
 const STORAGE_KEY = "generateResult";
 const CARD_COUNT_OPTIONS = [5, 10, 15, 20] as const;
 
+type Tab = "text" | "url" | "pdf";
+
 export function GenerateForm() {
   const router = useRouter();
-  const [tab, setTab] = useState<"text" | "url">("text");
+  const [tab, setTab] = useState<Tab>("text");
   const [text, setText] = useState("");
   const [url, setUrl] = useState("");
   const [urlError, setUrlError] = useState("");
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfError, setPdfError] = useState("");
   const [cardCount, setCardCount] = useState<number>(10);
   const [loading, setLoading] = useState(false);
 
@@ -37,22 +42,34 @@ export function GenerateForm() {
     if (tab === "text") {
       if (!text.trim()) { toast.error("テキストを入力してください"); return; }
       if (isTextOver) { toast.error("テキストが長すぎます。8,000文字以内に収めてください。"); return; }
-    } else {
+    } else if (tab === "url") {
       const err = validateUrl(url);
       if (err) { setUrlError(err); return; }
       setUrlError("");
+    } else {
+      if (!pdfFile) { setPdfError("PDFファイルを選択してください"); return; }
+      if (pdfFile.size > 10 * 1024 * 1024) { setPdfError("10MB以内のPDFを選択してください"); return; }
+      setPdfError("");
     }
 
     setLoading(true);
     try {
-      const endpoint = tab === "text" ? "/api/generate/from-text" : "/api/generate/from-url";
-      const body = tab === "text" ? { text, cardCount } : { url, cardCount };
+      let res: Response;
 
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      if (tab === "pdf" && pdfFile) {
+        const formData = new FormData();
+        formData.append("file", pdfFile);
+        formData.append("cardCount", String(cardCount));
+        res = await fetch("/api/generate/from-pdf", { method: "POST", body: formData });
+      } else {
+        const endpoint = tab === "text" ? "/api/generate/from-text" : "/api/generate/from-url";
+        const body = tab === "text" ? { text, cardCount } : { url, cardCount };
+        res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      }
 
       const data = await res.json();
       if (!res.ok) {
@@ -61,9 +78,10 @@ export function GenerateForm() {
       }
 
       const result: GenerateCardsResult = data;
+      const sourceContent = tab === "text" ? text : tab === "url" ? url : pdfFile!.name;
       const withSource = {
         ...result,
-        _source: { inputType: tab, content: tab === "text" ? text : url },
+        _source: { inputType: tab === "pdf" ? "text" : tab, content: sourceContent },
       };
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(withSource));
       router.push("/generate/review");
@@ -85,16 +103,20 @@ export function GenerateForm() {
         <span>3. 保存</span>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as "text" | "url")}>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
         <TabsList className="w-full">
-          <TabsTrigger value="text" className="flex-1">テキスト入力</TabsTrigger>
-          <TabsTrigger value="url" className="flex-1">URL入力</TabsTrigger>
+          <TabsTrigger value="text" className="flex-1">テキスト</TabsTrigger>
+          <TabsTrigger value="url" className="flex-1">URL</TabsTrigger>
+          <TabsTrigger value="pdf" className="flex-1">PDF</TabsTrigger>
         </TabsList>
         <TabsContent value="text" className="pt-4">
           <TextInputTab value={text} onChange={setText} />
         </TabsContent>
         <TabsContent value="url" className="pt-4">
           <UrlInputTab value={url} onChange={setUrl} error={urlError} />
+        </TabsContent>
+        <TabsContent value="pdf" className="pt-4">
+          <PdfInputTab file={pdfFile} onChange={setPdfFile} error={pdfError} />
         </TabsContent>
       </Tabs>
 
@@ -124,12 +146,12 @@ export function GenerateForm() {
         type="submit"
         className="w-full"
         size="lg"
-        disabled={loading || (tab === "text" && isTextOver)}
+        disabled={loading || (tab === "text" && isTextOver) || (tab === "pdf" && !pdfFile)}
       >
         {loading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            AIが重要ポイントを抽出しています...
+            {tab === "pdf" ? "PDFを解析しています..." : "AIが重要ポイントを抽出しています..."}
           </>
         ) : (
           <>
