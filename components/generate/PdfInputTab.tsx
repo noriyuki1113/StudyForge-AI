@@ -1,12 +1,22 @@
 "use client";
 
 import { useRef } from "react";
-import { FileText, X } from "lucide-react";
+import { FileText, X, Loader2, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+export interface PdfPreview {
+  title: string | null;
+  text: string;
+  charCount: number;
+}
 
 interface Props {
   file: File | null;
   onChange: (file: File | null) => void;
   error?: string;
+  preview: PdfPreview | null;
+  previewLoading: boolean;
+  onExtract: () => void;
 }
 
 const MAX_SIZE = 10 * 1024 * 1024;
@@ -16,7 +26,7 @@ function formatSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function PdfInputTab({ file, onChange, error }: Props) {
+export function PdfInputTab({ file, onChange, error, preview, previewLoading, onExtract }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -46,6 +56,22 @@ export function PdfInputTab({ file, onChange, error }: Props) {
               {formatSize(file.size)}{isOverSize ? " — 10MB を超えています" : ""}
             </p>
           </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onExtract}
+            disabled={previewLoading || !!isOverSize}
+            className="shrink-0"
+          >
+            {previewLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : preview ? (
+              <RefreshCw className="h-4 w-4" />
+            ) : (
+              "抽出"
+            )}
+          </Button>
           <button
             type="button"
             onClick={handleRemove}
@@ -74,6 +100,23 @@ export function PdfInputTab({ file, onChange, error }: Props) {
         className="hidden"
       />
       {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {preview && (
+        <div className="border rounded-lg p-4 space-y-2 bg-secondary/20">
+          <div className="flex items-start gap-2">
+            <FileText className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+            <div className="space-y-1 min-w-0">
+              {preview.title && (
+                <p className="text-sm font-medium leading-snug line-clamp-2">{preview.title}</p>
+              )}
+              <p className="text-xs text-muted-foreground">{preview.charCount.toLocaleString()} 文字を抽出</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3 pl-6">
+            {preview.text.slice(0, 200)}…
+          </p>
+        </div>
+      )}
     </div>
   );
 }

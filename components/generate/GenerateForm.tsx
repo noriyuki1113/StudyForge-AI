@@ -7,7 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { TextInputTab } from "./TextInputTab";
 import { UrlInputTab, type UrlPreview } from "./UrlInputTab";
-import { PdfInputTab } from "./PdfInputTab";
+import { PdfInputTab, type PdfPreview } from "./PdfInputTab";
 import { Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GenerateCardsResult } from "@/types/ai";
@@ -33,6 +33,8 @@ export function GenerateForm() {
   // pdf
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfError, setPdfError] = useState("");
+  const [pdfPreview, setPdfPreview] = useState<PdfPreview | null>(null);
+  const [pdfPreviewLoading, setPdfPreviewLoading] = useState(false);
 
   // common
   const [cardCount, setCardCount] = useState<number>(10);
@@ -44,6 +46,32 @@ export function GenerateForm() {
     setTab(v as Tab);
     setUrlError("");
     setPdfError("");
+  };
+
+  const handlePdfChange = (file: File | null) => {
+    setPdfFile(file);
+    setPdfPreview(null);
+    setPdfError("");
+  };
+
+  const handleExtractPdf = async () => {
+    if (!pdfFile) return;
+    setPdfPreviewLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", pdfFile);
+      const res = await fetch("/api/pdf/extract", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) {
+        setPdfError(data.error ?? "PDFの解析に失敗しました");
+        return;
+      }
+      setPdfPreview(data as PdfPreview);
+    } catch {
+      setPdfError("通信エラーが発生しました。もう一度お試しください。");
+    } finally {
+      setPdfPreviewLoading(false);
+    }
   };
 
   const handleUrlChange = (v: string) => {
@@ -84,7 +112,7 @@ export function GenerateForm() {
     if (loading) return true;
     if (tab === "text") return isTextOver;
     if (tab === "url") return !urlPreview; // プレビュー取得済みが必須
-    if (tab === "pdf") return !pdfFile;
+    if (tab === "pdf") return !pdfPreview;
     return false;
   };
 
@@ -101,7 +129,7 @@ export function GenerateForm() {
     }
     if (tab === "pdf") {
       if (!pdfFile) { setPdfError("PDFファイルを選択してください"); return; }
-      if (pdfFile.size > 10 * 1024 * 1024) { setPdfError("10MB以内のPDFを選択してください"); return; }
+      if (!pdfPreview) { setPdfError("先に「抽出」ボタンでテキストを抽出してください"); return; }
       setPdfError("");
     }
 
@@ -109,11 +137,12 @@ export function GenerateForm() {
     try {
       let res: Response;
 
-      if (tab === "pdf" && pdfFile) {
-        const formData = new FormData();
-        formData.append("file", pdfFile);
-        formData.append("cardCount", String(cardCount));
-        res = await fetch("/api/generate/from-pdf", { method: "POST", body: formData });
+      if (tab === "pdf" && pdfPreview) {
+        res = await fetch("/api/generate/from-text", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: pdfPreview.text, cardCount }),
+        });
       } else if (tab === "url" && urlPreview) {
         // プレビュー取得済みテキストを直接 from-text に送る
         res = await fetch("/api/generate/from-text", {
@@ -136,7 +165,7 @@ export function GenerateForm() {
       }
 
       const result: GenerateCardsResult = data;
-      const sourceContent = tab === "text" ? text : tab === "url" ? url : pdfFile!.name;
+      const sourceContent = tab === "text" ? text : tab === "url" ? url : pdfFile?.name ?? "";
       const sourceType = tab === "pdf" ? "text" : tab;
       const withSource = {
         ...result,
@@ -153,9 +182,9 @@ export function GenerateForm() {
 
   const getButtonLabel = () => {
     if (loading) {
-      return tab === "pdf" ? "PDFを解析しています..." : "AIが重要ポイントを抽出しています...";
+      return "AIが重要ポイントを抽出しています...";
     }
-    if (tab === "url" && urlPreview) return "この内容でカードを生成する";
+    if ((tab === "url" && urlPreview) || (tab === "pdf" && pdfPreview)) return "この内容でカードを生成する";
     return "カードを生成する";
   };
 
@@ -190,7 +219,14 @@ export function GenerateForm() {
           />
         </TabsContent>
         <TabsContent value="pdf" className="pt-4">
-          <PdfInputTab file={pdfFile} onChange={setPdfFile} error={pdfError} />
+          <PdfInputTab
+            file={pdfFile}
+            onChange={handlePdfChange}
+            error={pdfError}
+            preview={pdfPreview}
+            previewLoading={pdfPreviewLoading}
+            onExtract={handleExtractPdf}
+          />
         </TabsContent>
       </Tabs>
 
