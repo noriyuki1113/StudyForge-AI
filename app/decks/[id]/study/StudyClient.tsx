@@ -6,8 +6,7 @@ import { StudyProgress } from "@/components/study/StudyProgress";
 import { StudySummary } from "@/components/study/StudySummary";
 import { Button } from "@/components/ui/button";
 import { Shuffle } from "lucide-react";
-import { shuffle } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { shuffle, cn } from "@/lib/utils";
 import type { Card } from "@/types/database";
 
 interface Props {
@@ -20,12 +19,14 @@ export function StudyClient({ cards, deckId }: Props) {
   const [deck, setDeck] = useState<Card[]>(cards);
   const [index, setIndex] = useState(0);
   const [correct, setCorrect] = useState(0);
+  const [incorrectCards, setIncorrectCards] = useState<Card[]>([]);
   const [done, setDone] = useState(false);
 
   const reset = (nextDeck: Card[]) => {
     setDeck(nextDeck);
     setIndex(0);
     setCorrect(0);
+    setIncorrectCards([]);
     setDone(false);
   };
 
@@ -39,6 +40,11 @@ export function StudyClient({ cards, deckId }: Props) {
     reset(shuffleOn ? shuffle(cards) : [...cards]);
   };
 
+  const handleRetryWeak = () => {
+    const weak = incorrectCards;
+    reset(shuffleOn ? shuffle(weak) : [...weak]);
+  };
+
   const postLog = (cardId: string, result: "correct" | "incorrect") => {
     fetch("/api/review-logs", {
       method: "POST",
@@ -48,8 +54,14 @@ export function StudyClient({ cards, deckId }: Props) {
   };
 
   const handleResult = (result: "correct" | "incorrect") => {
-    postLog(deck[index].id, result);
+    const currentCard = deck[index];
+    postLog(currentCard.id, result);
+
     const nextCorrect = result === "correct" ? correct + 1 : correct;
+    if (result === "incorrect") {
+      setIncorrectCards((prev) => [...prev, currentCard]);
+    }
+
     const nextIndex = index + 1;
     if (nextIndex >= deck.length) {
       setCorrect(nextCorrect);
@@ -67,6 +79,8 @@ export function StudyClient({ cards, deckId }: Props) {
         total={deck.length}
         deckId={deckId}
         onRetry={handleRetry}
+        weakCount={incorrectCards.length}
+        onRetryWeak={incorrectCards.length > 0 ? handleRetryWeak : undefined}
       />
     );
   }
