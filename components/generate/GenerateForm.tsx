@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { TextInputTab } from "./TextInputTab";
-import { UrlInputTab } from "./UrlInputTab";
+import { UrlInputTab, type UrlPreview } from "./UrlInputTab";
 import { PdfInputTab } from "./PdfInputTab";
 import { Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -20,33 +20,86 @@ type Tab = "text" | "url" | "pdf";
 export function GenerateForm() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("text");
+
+  // text
   const [text, setText] = useState("");
+
+  // url
   const [url, setUrl] = useState("");
   const [urlError, setUrlError] = useState("");
+  const [urlPreview, setUrlPreview] = useState<UrlPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  // pdf
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfError, setPdfError] = useState("");
+
+  // common
   const [cardCount, setCardCount] = useState<number>(10);
   const [loading, setLoading] = useState(false);
 
   const isTextOver = text.length > 8000;
 
-  const validateUrl = (v: string) => {
-    if (!v) return "URLを入力してください";
-    if (!/^https?:\/\//i.test(v)) return "http または https で始まるURLを入力してください";
-    return "";
+  const handleTabChange = (v: string) => {
+    setTab(v as Tab);
+    setUrlError("");
+    setPdfError("");
+  };
+
+  const handleUrlChange = (v: string) => {
+    setUrl(v);
+    setUrlPreview(null); // URL 変更でプレビューをリセット
+    setUrlError("");
+  };
+
+  // URL テキスト取得
+  const handleFetchPreview = async () => {
+    if (!url.trim()) return;
+    if (!/^https?:\/\//i.test(url)) {
+      setUrlError("http または https で始まるURLを入力してください");
+      return;
+    }
+    setUrlError("");
+    setPreviewLoading(true);
+    try {
+      const res = await fetch("/api/generate/preview-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setUrlError(data.error ?? "URLからの取得に失敗しました");
+        return;
+      }
+      setUrlPreview(data as UrlPreview);
+    } catch {
+      setUrlError("通信エラーが発生しました。もう一度お試しください。");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const isSubmitDisabled = () => {
+    if (loading) return true;
+    if (tab === "text") return isTextOver;
+    if (tab === "url") return !urlPreview; // プレビュー取得済みが必須
+    if (tab === "pdf") return !pdfFile;
+    return false;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (tab === "text") {
-      if (!text.trim()) { toast.error("テキストを入力してください"); return; }
-      if (isTextOver) { toast.error("テキストが長すぎます。8,000文字以内に収めてください。"); return; }
-    } else if (tab === "url") {
-      const err = validateUrl(url);
-      if (err) { setUrlError(err); return; }
-      setUrlError("");
-    } else {
+    if (tab === "text" && !text.trim()) {
+      toast.error("テキストを入力してください");
+      return;
+    }
+    if (tab === "url" && !urlPreview) {
+      toast.error("先に「取得」ボタンでURLのテキストを取得してください");
+      return;
+    }
+    if (tab === "pdf") {
       if (!pdfFile) { setPdfError("PDFファイルを選択してください"); return; }
       if (pdfFile.size > 10 * 1024 * 1024) { setPdfError("10MB以内のPDFを選択してください"); return; }
       setPdfError("");
@@ -61,13 +114,18 @@ export function GenerateForm() {
         formData.append("file", pdfFile);
         formData.append("cardCount", String(cardCount));
         res = await fetch("/api/generate/from-pdf", { method: "POST", body: formData });
-      } else {
-        const endpoint = tab === "text" ? "/api/generate/from-text" : "/api/generate/from-url";
-        const body = tab === "text" ? { text, cardCount } : { url, cardCount };
-        res = await fetch(endpoint, {
+      } else if (tab === "url" && urlPreview) {
+        // プレビュー取得済みテキストを直接 from-text に送る
+        res = await fetch("/api/generate/from-text", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          body: JSON.stringify({ text: urlPreview.text, cardCount }),
+        });
+      } else {
+        res = await fetch("/api/generate/from-text", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, cardCount }),
         });
       }
 
@@ -79,9 +137,10 @@ export function GenerateForm() {
 
       const result: GenerateCardsResult = data;
       const sourceContent = tab === "text" ? text : tab === "url" ? url : pdfFile!.name;
+      const sourceType = tab === "pdf" ? "text" : tab;
       const withSource = {
         ...result,
-        _source: { inputType: tab === "pdf" ? "text" : tab, content: sourceContent },
+        _source: { inputType: sourceType, content: sourceContent },
       };
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(withSource));
       router.push("/generate/review");
@@ -90,6 +149,14 @@ export function GenerateForm() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getButtonLabel = () => {
+    if (loading) {
+      return tab === "pdf" ? "PDFを解析しています..." : "AIが重要ポイントを抽出しています...";
+    }
+    if (tab === "url" && urlPreview) return "この内容でカードを生成する";
+    return "カードを生成する";
   };
 
   return (
@@ -103,7 +170,7 @@ export function GenerateForm() {
         <span>3. 保存</span>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+      <Tabs value={tab} onValueChange={handleTabChange}>
         <TabsList className="w-full">
           <TabsTrigger value="text" className="flex-1">テキスト</TabsTrigger>
           <TabsTrigger value="url" className="flex-1">URL</TabsTrigger>
@@ -113,7 +180,14 @@ export function GenerateForm() {
           <TextInputTab value={text} onChange={setText} />
         </TabsContent>
         <TabsContent value="url" className="pt-4">
-          <UrlInputTab value={url} onChange={setUrl} error={urlError} />
+          <UrlInputTab
+            value={url}
+            onChange={handleUrlChange}
+            error={urlError}
+            preview={urlPreview}
+            previewLoading={previewLoading}
+            onFetch={handleFetchPreview}
+          />
         </TabsContent>
         <TabsContent value="pdf" className="pt-4">
           <PdfInputTab file={pdfFile} onChange={setPdfFile} error={pdfError} />
@@ -146,17 +220,17 @@ export function GenerateForm() {
         type="submit"
         className="w-full"
         size="lg"
-        disabled={loading || (tab === "text" && isTextOver) || (tab === "pdf" && !pdfFile)}
+        disabled={isSubmitDisabled()}
       >
         {loading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            {tab === "pdf" ? "PDFを解析しています..." : "AIが重要ポイントを抽出しています..."}
+            {getButtonLabel()}
           </>
         ) : (
           <>
             <Sparkles className="mr-2 h-4 w-4" />
-            カードを生成する
+            {getButtonLabel()}
           </>
         )}
       </Button>

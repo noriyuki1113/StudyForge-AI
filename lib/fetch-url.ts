@@ -1,6 +1,11 @@
 const MAX_CHARS = 8000;
 
-export async function fetchUrlText(url: string): Promise<string> {
+export interface UrlContent {
+  title: string | null;
+  text: string;
+}
+
+export async function fetchUrlContent(url: string): Promise<UrlContent> {
   if (!/^https?:\/\//i.test(url)) {
     throw new Error("URL は http:// または https:// で始める必要があります");
   }
@@ -26,23 +31,35 @@ export async function fetchUrlText(url: string): Promise<string> {
     clearTimeout(timeout);
   }
 
-  return extractText(html);
+  return {
+    title: extractTitle(html),
+    text: extractText(html),
+  };
+}
+
+export async function fetchUrlText(url: string): Promise<string> {
+  const { text } = await fetchUrlContent(url);
+  return text;
+}
+
+function extractTitle(html: string): string | null {
+  const match = /<title[^>]*>([^<]+)<\/title>/i.exec(html);
+  if (!match) return null;
+  const title = match[1].replace(/\s+/g, " ").trim();
+  return title || null;
 }
 
 function extractText(html: string): string {
-  // スクリプト・スタイル除去
   const cleaned = html
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<style[\s\S]*?<\/style>/gi, "");
 
-  // main / article 優先、なければ body 全体
   const mainMatch =
     /<main[\s\S]*?>([\s\S]*?)<\/main>/i.exec(cleaned) ??
     /<article[\s\S]*?>([\s\S]*?)<\/article>/i.exec(cleaned);
 
   const source = mainMatch ? mainMatch[1] : cleaned;
 
-  // タグ除去・空白正規化
   const text = source
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/g, " ")
