@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 import { TextInputTab } from "./TextInputTab";
 import { UrlInputTab } from "./UrlInputTab";
 import { Sparkles, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { GenerateCardsResult } from "@/types/ai";
 
 const STORAGE_KEY = "generateResult";
+const CARD_COUNT_OPTIONS = [5, 10, 15, 20] as const;
 
 export function GenerateForm() {
   const router = useRouter();
@@ -18,6 +20,7 @@ export function GenerateForm() {
   const [text, setText] = useState("");
   const [url, setUrl] = useState("");
   const [urlError, setUrlError] = useState("");
+  const [cardCount, setCardCount] = useState<number>(10);
   const [loading, setLoading] = useState(false);
 
   const isTextOver = text.length > 8000;
@@ -43,7 +46,7 @@ export function GenerateForm() {
     setLoading(true);
     try {
       const endpoint = tab === "text" ? "/api/generate/from-text" : "/api/generate/from-url";
-      const body = tab === "text" ? { text, cardCount: 10 } : { url, cardCount: 10 };
+      const body = tab === "text" ? { text, cardCount } : { url, cardCount };
 
       const res = await fetch(endpoint, {
         method: "POST",
@@ -58,7 +61,6 @@ export function GenerateForm() {
       }
 
       const result: GenerateCardsResult = data;
-      // 生成元情報を付加して sessionStorage に保存
       const withSource = {
         ...result,
         _source: { inputType: tab, content: tab === "text" ? text : url },
@@ -95,6 +97,28 @@ export function GenerateForm() {
           <UrlInputTab value={url} onChange={setUrl} error={urlError} />
         </TabsContent>
       </Tabs>
+
+      {/* カード枚数 */}
+      <div className="space-y-2">
+        <p className="text-sm font-medium">生成枚数</p>
+        <div className="flex gap-2">
+          {CARD_COUNT_OPTIONS.map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setCardCount(n)}
+              className={cn(
+                "flex-1 py-2 rounded-md border text-sm font-medium transition-colors",
+                cardCount === n
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border hover:border-primary hover:text-primary"
+              )}
+            >
+              {n}枚
+            </button>
+          ))}
+        </div>
+      </div>
 
       <Button
         type="submit"

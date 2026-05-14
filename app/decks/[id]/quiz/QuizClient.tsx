@@ -4,6 +4,7 @@ import { useState } from "react";
 import { QuizQuestion } from "@/components/study/QuizQuestion";
 import { QuizSummary } from "@/components/study/QuizSummary";
 import { StudyProgress } from "@/components/study/StudyProgress";
+import { shuffle } from "@/lib/utils";
 import type { Quiz } from "@/types/database";
 
 interface Props {
@@ -12,11 +13,13 @@ interface Props {
 }
 
 export function QuizClient({ quizzes, deckId }: Props) {
+  const [deck, setDeck] = useState<Quiz[]>(() => shuffle(quizzes));
   const [index, setIndex] = useState(0);
   const [results, setResults] = useState<boolean[]>([]);
   const [done, setDone] = useState(false);
 
   const handleRetry = () => {
+    setDeck(shuffle(quizzes));
     setIndex(0);
     setResults([]);
     setDone(false);
@@ -36,10 +39,10 @@ export function QuizClient({ quizzes, deckId }: Props) {
   };
 
   const handleResult = (correct: boolean) => {
-    postLog(quizzes[index].card_id, correct);
+    postLog(deck[index].card_id, correct);
     const nextResults = [...results, correct];
     const nextIndex = index + 1;
-    if (nextIndex >= quizzes.length) {
+    if (nextIndex >= deck.length) {
       setResults(nextResults);
       setDone(true);
     } else {
@@ -56,12 +59,12 @@ export function QuizClient({ quizzes, deckId }: Props) {
 
   return (
     <div className="space-y-6">
-      <StudyProgress current={index + 1} total={quizzes.length} />
+      <StudyProgress current={index + 1} total={deck.length} />
       <QuizQuestion
-        key={index}
-        quiz={quizzes[index]}
+        key={`${index}-${deck[index].id}`}
+        quiz={deck[index]}
         index={index}
-        total={quizzes.length}
+        total={deck.length}
         onResult={handleResult}
       />
     </div>
